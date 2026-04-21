@@ -21,7 +21,7 @@ from .models import (
 from .forms import (
     LoginForm, CourseForm, ExamForm, ExamSectionForm, AnswerScriptUploadForm,
     MarkForm, QueryForm, QueryResponseForm, TAAssignmentForm,
-    FacultyAdvisorForm, AdminAddFacultyForm, AdminAddStudentForm,
+    FacultyAdvisorForm, AdminAddFacultyForm, AdminAddStudentForm, AdminAddTAForm,
     AdminForceEnrollForm
 )
 
@@ -97,13 +97,12 @@ def _extract_decimal_from_cell(value):
     if not cleaned:
         return None
 
-    cleaned = cleaned.replace('%', '')
-    match = re.search(r'-?\d+(?:\.\d+)?', cleaned)
-    if not match:
+    cleaned = cleaned.replace(',', '')
+    if not re.fullmatch(r'-?\d+(?:\.\d+)?%?', cleaned):
         return None
 
     try:
-        return Decimal(match.group(0))
+        return Decimal(cleaned.rstrip('%'))
     except (InvalidOperation, ValueError):
         return None
 
@@ -162,27 +161,59 @@ def _import_csv_marks(csv_file, exam):
     has_header = any(token in {
         'roll', 'rollno', 'rollnumber', 'username', 'name', 'student', 'marks', 'score', 'total'
     } for token in header_tokens)
+
+    marks_column_idx = None
+    student_column_indexes = []
+    if has_header:
+        for idx, token in enumerate(header_tokens):
+            if token in {'marks', 'mark', 'score', 'totalscore', 'totalmarks'}:
+                marks_column_idx = idx
+            if token in {'roll', 'rollno', 'rollnumber', 'username', 'student', 'studentname', 'name'}:
+                student_column_indexes.append(idx)
+
     data_rows = rows[1:] if has_header else rows
 
     saved_count = 0
     skipped_count = 0
 
     for row in data_rows:
-        cells = [str(cell).strip() for cell in row if str(cell).strip()]
-        if not cells:
+        if not row:
+            continue
+
+        raw_cells = [str(cell).strip() for cell in row]
+        if not any(raw_cells):
             continue
 
         matched_student = None
-        for cell in cells:
-            matched_student = student_lookup.get(_normalize_text(cell))
-            if matched_student:
-                break
+        matched_idx = None
+
+        if has_header and student_column_indexes:
+            for idx in student_column_indexes:
+                if idx >= len(raw_cells):
+                    continue
+                matched_student = student_lookup.get(_normalize_text(raw_cells[idx]))
+                if matched_student:
+                    matched_idx = idx
+                    break
+
+        if not matched_student:
+            for idx, cell in enumerate(raw_cells):
+                matched_student = student_lookup.get(_normalize_text(cell))
+                if matched_student:
+                    matched_idx = idx
+                    break
 
         parsed_marks = None
-        for cell in reversed(cells):
-            parsed_marks = _extract_decimal_from_cell(cell)
-            if parsed_marks is not None:
-                break
+        if marks_column_idx is not None and marks_column_idx < len(raw_cells):
+            parsed_marks = _extract_decimal_from_cell(raw_cells[marks_column_idx])
+
+        if parsed_marks is None:
+            for idx in range(len(raw_cells) - 1, -1, -1):
+                if matched_idx is not None and idx == matched_idx:
+                    continue
+                parsed_marks = _extract_decimal_from_cell(raw_cells[idx])
+                if parsed_marks is not None:
+                    break
 
         if (
             not matched_student
@@ -562,6 +593,7 @@ def professor_dashboard(request):
 def professor_course_detail(request, course_id):
     course = get_object_or_404(Course, id=course_id, professor=request.user)
     exams = course.exams.all()
+    total_weightage = sum((exam.weightage for exam in exams), Decimal('0'))
     tas = TAAssignment.objects.filter(course=course).select_related('ta')
     enrolled_students = Enrollment.objects.filter(
         course=course, status='approved'
@@ -570,6 +602,7 @@ def professor_course_detail(request, course_id):
     return render(request, 'core/professor/course_detail.html', {
         'course': course,
         'exams': exams,
+        'total_weightage': total_weightage,
         'tas': tas,
         'enrolled_students': enrolled_students,
     })
@@ -590,7 +623,30 @@ def professor_add_exam(request, course_id):
     else:
         form = ExamForm()
     return render(request, 'core/professor/add_exam.html', {
-        'form': form, 'course': course
+        'form': form, 'course': course, 'edit_mode': False
+    })
+
+
+@login_required
+@role_required('professor')
+def professor_edit_exam(request, exam_id):
+    exam = get_object_or_404(Exam, id=exam_id, course__professor=request.user)
+    course = exam.course
+
+    if request.method == 'POST':
+        form = ExamForm(request.POST, instance=exam)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Exam "{exam.name}" updated successfully.')
+            return redirect('professor_course_detail', course_id=course.id)
+    else:
+        form = ExamForm(instance=exam)
+
+    return render(request, 'core/professor/add_exam.html', {
+        'form': form,
+        'course': course,
+        'exam': exam,
+        'edit_mode': True,
     })
 
 
@@ -1024,19 +1080,16 @@ def professor_assign_grades(request, course_id):
     grade_rows = []
     for enrollment in enrollments:
         weighted_total = Decimal('0')
-        raw_total = Decimal('0')
         for exam in exams:
             total_mark = _student_exam_total(exam, enrollment.student_id)
             if total_mark is None:
                 continue
-            raw_total += total_mark
             if exam.max_marks > 0:
-                weighted_total += (total_mark / exam.max_marks) * Decimal('100')
+                weighted_total += (total_mark / exam.max_marks) * exam.weightage
 
         grade_rows.append({
             'enrollment': enrollment,
             'weighted_total': round(weighted_total, 2),
-            'raw_total': round(raw_total, 2),
         })
 
     grade_rows.sort(key=lambda row: row['weighted_total'], reverse=True)
@@ -1044,6 +1097,7 @@ def professor_assign_grades(request, course_id):
     return render(request, 'core/professor/assign_grades.html', {
         'course': course,
         'grade_rows': grade_rows,
+        'total_weightage': round(sum((exam.weightage for exam in exams), Decimal('0')), 2),
     })
 
 
@@ -1144,6 +1198,20 @@ def admin_add_student(request):
     else:
         form = AdminAddStudentForm()
     return render(request, 'core/admin/add_user.html', {'form': form, 'title': 'Add Student'})
+
+
+@login_required
+@role_required('admin')
+def admin_add_ta(request):
+    if request.method == 'POST':
+        form = AdminAddTAForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            messages.success(request, f'TA {user.username} created successfully.')
+            return redirect('admin_dashboard')
+    else:
+        form = AdminAddTAForm()
+    return render(request, 'core/admin/add_user.html', {'form': form, 'title': 'Add TA'})
 
 
 @login_required

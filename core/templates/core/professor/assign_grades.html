@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card">
     <h2>Assign Grades for {{ course.code }} — {{ course.name }}</h2>
-    <p class="text-sm text-muted">Rows are sorted by weighted total in descending order to support unbiased grading.</p>
+    <p class="text-sm text-muted">Rows are sorted by weighted total in descending order. Formula used per exam: (weightage/max_marks) × obtained_marks. Configured total weightage: {{ total_weightage }}.</p>
     
     {% if grade_rows %}
     <form method="post">
@@ -12,8 +12,7 @@
             <tr>
                 <th>Student</th>
                 <th>Roll Number</th>
-                <th>Weighted Total</th>
-                <th>Raw Total</th>
+                <th>Total Marks (Weighted / 100)</th>
                 <th>Current Grade</th>
                 <th>New Grade</th>
             </tr>
@@ -23,7 +22,6 @@
                 <td>{{ enrollment.student.get_full_name|default:enrollment.student.username }}</td>
                 <td>{{ enrollment.student.roll_number|default:"-" }}</td>
                 <td>{{ row.weighted_total }}</td>
-                <td>{{ row.raw_total }}</td>
                 <td>{{ enrollment.grade|default:"-" }}</td>
                 <td>
                     <input type="text" name="grade_{{ enrollment.id }}" value="{{ enrollment.grade|default:'' }}" maxlength="5" class="form-control" style="width: 80px;" placeholder="e.g. A">

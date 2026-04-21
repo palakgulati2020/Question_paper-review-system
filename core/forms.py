@@ -55,8 +55,9 @@ class CourseForm(forms.ModelForm):
 class ExamForm(forms.ModelForm):
     class Meta:
         model = Exam
-        fields = ['name', 'max_marks', 'query_window_start', 'query_window_end']
+        fields = ['name', 'weightage', 'max_marks', 'query_window_start', 'query_window_end']
         widgets = {
+            'weightage': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
             'max_marks': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
             'query_window_start': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
             'query_window_end': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
@@ -170,6 +171,31 @@ class AdminAddStudentForm(forms.ModelForm):
             if advisor:
                 from .models import FacultyAdvisor
                 FacultyAdvisor.objects.update_or_create(student=user, defaults={'advisor': advisor})
+        return user
+
+
+class AdminAddTAForm(forms.ModelForm):
+    department = forms.ChoiceField(choices=DEPARTMENT_CHOICES)
+
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email', 'department', 'roll_number']
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if not email.endswith('@iitg.ac.in'):
+            raise forms.ValidationError('Email must end with @iitg.ac.in')
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.role = 'ta'
+        if user.roll_number:
+            user.set_password(user.roll_number)
+        else:
+            user.set_password('password')
+        if commit:
+            user.save()
         return user
 
 

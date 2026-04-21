@@ -21,6 +21,7 @@ urlpatterns = [
     path('professor/', views.professor_dashboard, name='professor_dashboard'),
     path('professor/course/<int:course_id>/', views.professor_course_detail, name='professor_course_detail'),
     path('professor/course/<int:course_id>/add-exam/', views.professor_add_exam, name='professor_add_exam'),
+    path('professor/exam/<int:exam_id>/edit/', views.professor_edit_exam, name='professor_edit_exam'),
     path('professor/exam/<int:exam_id>/add-section/', views.professor_add_section, name='professor_add_section'),
     path('professor/exam/<int:exam_id>/upload-scripts/', views.professor_upload_scripts, name='professor_upload_scripts'),
     path('professor/exam/<int:exam_id>/marks/', views.professor_enter_marks, name='professor_enter_marks'),
@@ -44,6 +45,7 @@ urlpatterns = [
     path('app-admin/ended-courses/', views.admin_ended_courses, name='admin_ended_courses'),
     path('app-admin/add-faculty/', views.admin_add_faculty, name='admin_add_faculty'),
     path('app-admin/add-student/', views.admin_add_student, name='admin_add_student'),
+    path('app-admin/add-ta/', views.admin_add_ta, name='admin_add_ta'),
     path('app-admin/course/<int:course_id>/grades/', views.admin_view_course_grades, name='admin_view_course_grades'),
     path('app-admin/course/<int:course_id>/notify-grade-pending/', views.admin_notify_grade_pending, name='admin_notify_grade_pending'),
 

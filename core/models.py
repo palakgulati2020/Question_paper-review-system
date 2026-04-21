@@ -82,6 +82,13 @@ class Enrollment(models.Model):
 class Exam(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='exams')
     name = models.CharField(max_length=100)
+    weightage = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal('100.00'),
+        validators=[MinValueValidator(Decimal('0.01'))],
+        help_text='Exam contribution weight (recommended total across course = 100).',
+    )
     max_marks = models.DecimalField(
         max_digits=8,
         decimal_places=2,
