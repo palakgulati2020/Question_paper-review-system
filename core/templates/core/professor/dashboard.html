@@ -108,7 +108,7 @@
             </div>
         </div>
         <table>
-            <tr><th><input type="checkbox" id="select-all-prof"></th><th>Student</th><th>Course</th><th>Single Actions</th></tr>
+            <tr><th><input type="checkbox" id="select-all-prof"></th><th>Student</th><th>Course</th><th>Single Actions </th></tr>
             {% for e in prof_requests %}
             <tr>
                 <td><input type="checkbox" class="prof-chk" name="enrollment_ids" value="{{ e.id }}"></td>
@@ -116,7 +116,7 @@
                 <td>{{ e.course.code }} — {{ e.course.name }}</td>
                 <td>
                     <a href="{% url 'professor_approve_enrollment' e.id %}?type=professor&next=dashboard" class="btn btn-success btn-sm">Approve</a>
-                    <span class="text-sm text-muted">Use checkbox + Reject Selected</span>
+                   
                 </td>
             </tr>
             {% endfor %}
