@@ -70,7 +70,7 @@ mysql -u root -e "CREATE DATABASE IF NOT EXISTS question_paper_review;"
 ### 3. Clone and Navigate to the Project
 
 ```bash
-git clone https://github.com/pushpendras0026/Question_paper_review_system.git
+git clone https://github.com/palakgulati2020/Question_paper-review-system.git
 cd Question_paper_review_system
 ```
 
